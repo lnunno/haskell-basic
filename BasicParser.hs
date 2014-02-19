@@ -6,7 +6,10 @@ data Variable = Variable String deriving (Show,Eq)
 
 data Relop = Lt | Gt | Equal deriving (Show,Eq)
 
-data Expression = Expression Int
+data Expression = Ne deriving (Show)
+
+data ExprOp = Plus | Minus deriving (Show,Eq)
+data FactorOp = Times | Div deriving (Show,Eq)
 
 data Statement = 
     Print [Expression]                       | 
@@ -20,6 +23,7 @@ data Statement =
     List                                     |
     Run                                      |
     End
+    deriving (Show)
 
 {-
 Utility function to ignore whitespace following a parser.
@@ -77,40 +81,64 @@ relop =
 
 parseBasic p input = parse p "basic" input
 
-printStatement :: Parser String
+printStatement :: Parser Statement
 printStatement = 
     do
         string "PRINT"
-        return "Foo"
+        return $ Print [Ne]
 
-ifStatement :: Parser String
+ifStatement :: Parser Statement
 ifStatement =
     do
         tk $ string "IF"
+        op <- relop
         tk $ string "THEN"
-        return "Foo"
+        return $ If Ne op Ne End
 
-letStatement :: Parser String
+letStatement :: Parser Statement
 letStatement =
     do
         tk $ string "LET"
+        v <- var 
         tk $ char '='
-        return "foo"
+        return $ Let v Ne 
 
-goto :: Parser String
+goto :: Parser Statement
 goto =
     do
         tk $ string "GOTO"
+        return $ Goto Ne
+
+input :: Parser Statement
+input = 
+    do
+        tk $ string "INPUT"
+        variables <- varList 
+        return $ Input variables
+
 
 {-
 Statement parsers.
 -}
-gosub = do {tk $ string "GOSUB";   return Gosub}
-ret =   do {tk $ string "RETURN";  return Return}
+gosub = do {tk $ string "GOSUB";   return $ Gosub Ne}
+ret   = do {tk $ string "RETURN";  return Return}
 clear = do {tk $ string "CLEAR";   return Clear}
-list =  do {tk $ string "LIST";    return List}
-run =   do {tk $ string "RUN";     return Run}
-end =   do {tk $ string "END";     return End}
+list  = do {tk $ string "LIST";    return List}
+run   = do {tk $ string "RUN";     return Run}
+end   = do {tk $ string "END";     return End}
+
+statement :: Parser Statement
+statement = printStatement <|> 
+            ifStatement    <|> 
+            goto           <|> 
+            input          <|> 
+            letStatement   <|> 
+            gosub          <|>
+            ret            <|>
+            clear          <|>
+            list           <|>
+            run            <|>
+            end
 
 factor = 
     do
