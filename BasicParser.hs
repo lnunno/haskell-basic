@@ -6,6 +6,21 @@ data Variable = Variable String deriving (Show,Eq)
 
 data Relop = Lt | Gt | Equal deriving (Show,Eq)
 
+data Expression = Expression Int
+
+data Statement = 
+    Print [Expression]                       | 
+    If Expression Relop Expression Statement | 
+    Goto Expression                          |
+    Input [Variable]                         | 
+    Let Variable Expression                  |
+    Gosub Expression                         |
+    Return                                   |
+    Clear                                    |
+    List                                     |
+    Run                                      |
+    End
+
 {-
 Utility function to ignore whitespace following a parser.
 -}
@@ -87,17 +102,28 @@ goto =
     do
         tk $ string "GOTO"
 
-gosub :: Parser String
-gosub =
-    do
-        tk $ string "GOSUB"
-        return "Foo"
+{-
+Statement parsers.
+-}
+gosub = do {tk $ string "GOSUB";   return Gosub}
+ret =   do {tk $ string "RETURN";  return Return}
+clear = do {tk $ string "CLEAR";   return Clear}
+list =  do {tk $ string "LIST";    return List}
+run =   do {tk $ string "RUN";     return Run}
+end =   do {tk $ string "END";     return End}
 
-ret = tk $ string "RETURN"
-clear = tk $ string "CLEAR"
-list = tk $ string "LIST"
-run = tk $ string "RUN"
-end = tk $ string "END"
+factor = 
+    do
+        v <- var 
+        return "foo"
+    <|>
+    do
+        n <- number
+        return "bar"
+    <|>
+    do
+        -- Expression
+        return "bleh"
 
 main :: IO ()
 main = do
