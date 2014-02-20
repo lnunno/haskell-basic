@@ -53,8 +53,11 @@ instance Show Expression where
 data Statement = 
     Print [Expression]                       | 
     If Expression Relop Expression Statement | 
+    ForLoop Expression Expression Expression |
+    NextIter Expression                      |
     Goto Expression                          |
     Input [Expression]                       | 
+    Array Variable Expression                |
     Let Variable Expression                  |
     Gosub Expression                         |
     Return                                   |
@@ -75,8 +78,11 @@ showLineList lineLs = intercalate "\n" (map show lineLs)
 instance Show Statement where
     show (Print exprs)      = "PRINT " ++ (showExprList exprs)
     show (If e1 r1 e2 stmt) = "IF " ++ (show e1) ++ " " ++ (show r1) ++ " " ++ (show e2) ++ " THEN " ++ (show stmt)
+    show (ForLoop e1 e2 e3) = "FOR " ++ (show e1) ++ " = " ++ (show e2) ++ " TO " ++ (show e3)
+    show (NextIter e)       = "NEXT " ++ (show e)
     show (Goto e)           = "GOTO " ++ (show e)
     show (Input exprs)      = "INPUT " ++ (showExprList exprs)
+    show (Array v e)        = "DIM " ++ (show v) ++ " (" ++ (show e) ++ ")"
     show (Let v e)          = "LET " ++ (show v) ++ " = " ++ (show e)
     show (Gosub e)          = "GOSUB " ++ (show e)
     show Return             = "RETURN"
@@ -177,6 +183,24 @@ ifStatement =
         s <- tk $ statement
         return $ If e1 op e2 s
 
+forLoop :: Parser Statement
+forLoop =
+    do
+        tk $ string "FOR"
+        e1 <- tk $ expression
+        tk $ char '='
+        e2 <- tk $ expression
+        tk $ string "TO"
+        e3 <- tk $ expression
+        return $ ForLoop e1 e2 e3
+
+nextIter :: Parser Statement
+nextIter = 
+    do
+        tk $ string "NEXT"
+        e <- expression
+        return $ NextIter e
+
 parens p = 
     do
         tk $ char '('
@@ -210,6 +234,14 @@ rndLet =
 letStatement :: Parser Statement
 letStatement = try rndLet <|> arithLet
 
+array :: Parser Statement
+array =
+    do
+        tk $ string "DIM"
+        v <- var 
+        e <- tk $ parens expression
+        return $ Array v e
+
 goto :: Parser Statement
 goto =
     do
@@ -238,6 +270,9 @@ end   = do {tk $ string "END";     return End}
 statement :: Parser Statement
 statement = try printStatement <|> 
             try ifStatement    <|> 
+            try forLoop        <|>
+            try nextIter       <|>
+            try array          <|>
             try goto           <|> 
             try input          <|> 
             try letStatement   <|> 
@@ -248,8 +283,30 @@ statement = try printStatement <|>
             try run            <|>
             try end
 
+binaryOp :: Parser Expression
+binaryOp =
+    do
+        f1 <- factor
+        operator <- op
+        f2 <- factor
+        return $ ABinary operator f1 f2
+
 expression :: Parser Expression
 expression = 
+    do
+        binOp <- try binaryOp
+        return binOp
+    <|>
+    do
+        f <- factor
+        return f
+    <|>
+    do
+        e <- tk $ parens expression
+        return e
+
+factor :: Parser Expression
+factor =
     do
         s <- tk $ str
         return $ EString s
