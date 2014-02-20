@@ -1,21 +1,46 @@
-module BasicParser where
+{-
+CS 591: Advanced Declarative Programming
+Basic Parser using Parsec
+By: Lucas Nunno
+-}
+module Main where
 
-import Text.ParserCombinators.Parsec
+import System.Environment
+import Text.ParserCombinators.Parsec hiding (Line)
+import Data.List
 
 data Variable = Variable String deriving (Show,Eq)
 
-data Relop = Lt | Gt | Equal deriving (Show,Eq)
+data Op = Plus | Minus | Times | Div deriving (Eq)
 
-data Expression = Ne deriving (Show)
+instance Show Op where
+    show Plus   = "+"
+    show Minus  = "-"
+    show Times  = "*"
+    show Div    = "/"
 
-data ExprOp = Plus | Minus deriving (Show,Eq)
-data FactorOp = Times | Div deriving (Show,Eq)
+data Line = NumberedLine Int Statement | Line Statement deriving (Show)
+
+data Relop = Lt | Gt | Equal deriving (Eq)
+
+instance Show Relop where
+    show Lt = "<"
+    show Gt = ">"
+    show Equal = "=" 
+
+data Expression = 
+    EString String      | 
+    EVar Variable       | 
+    ENum Int            | 
+    EOp  Op             |
+    Ne 
+    deriving (Show)
 
 data Statement = 
     Print [Expression]                       | 
     If Expression Relop Expression Statement | 
     Goto Expression                          |
-    Input [Variable]                         | 
+    Input [Expression]                       | 
     Let Variable Expression                  |
     Gosub Expression                         |
     Return                                   |
@@ -23,7 +48,25 @@ data Statement =
     List                                     |
     Run                                      |
     End
-    deriving (Show)
+
+showVarList :: [Variable] -> String
+showVarList vars = intercalate ", " (map show vars)
+
+showExprList :: [Expression] -> String
+showExprList exprs = intercalate "; " (map show exprs)
+
+instance Show Statement where
+    show (Print exprs)      = "PRINT " ++ (showExprList exprs)
+    show (If e1 r1 e2 stmt) = "IF " ++ (show e1) ++ " " ++ (show r1) ++ " " ++ (show e2) ++ " THEN " ++ (show stmt)
+    show (Goto e)           = "GOTO " ++ (show e)
+    show (Input exprs)      = "INPUT " ++ (showExprList exprs)
+    show (Let v e)          = "LET " ++ (show v) ++ " = " ++ (show e)
+    show (Gosub e)          = "GOSUB " ++ (show e)
+    show Return             = "RETURN"
+    show Clear              = "CLEAR"
+    show List               = "LIST"
+    show Run                = "RUN"
+    show End                = "END"
 
 {-
 Utility function to ignore whitespace following a parser.
@@ -65,6 +108,24 @@ number =
         ds <- many1 digit
         return (read ds :: Int)
 
+op :: Parser Op
+op =
+    do
+        tk $ char '+'
+        return Plus
+    <|>
+    do 
+        tk $ char '-'
+        return Minus
+    <|>
+    do
+        tk $ char '*'
+        return Times
+    <|>
+    do
+        tk $ char '/'
+        return Div
+
 relop :: Parser Relop
 relop = 
     do
@@ -79,7 +140,7 @@ relop =
         tk $ char '='
         return Equal
 
-parseBasic p input = parse p "basic" input
+easyParse p input = parse p "basic" input
 
 printStatement :: Parser Statement
 printStatement = 
@@ -113,8 +174,8 @@ input :: Parser Statement
 input = 
     do
         tk $ string "INPUT"
-        variables <- varList 
-        return $ Input variables
+        exprs <- expressionList 
+        return $ Input exprs
 
 
 {-
@@ -128,31 +189,81 @@ run   = do {tk $ string "RUN";     return Run}
 end   = do {tk $ string "END";     return End}
 
 statement :: Parser Statement
-statement = printStatement <|> 
-            ifStatement    <|> 
-            goto           <|> 
-            input          <|> 
-            letStatement   <|> 
-            gosub          <|>
-            ret            <|>
-            clear          <|>
-            list           <|>
-            run            <|>
-            end
+statement = try printStatement <|> 
+            try ifStatement    <|> 
+            try goto           <|> 
+            try input          <|> 
+            try letStatement   <|> 
+            try gosub          <|>
+            try ret            <|>
+            try clear          <|>
+            try list           <|>
+            try run            <|>
+            try end
 
-factor = 
+expression :: Parser Expression
+expression = 
     do
-        v <- var 
-        return "foo"
+        s <- tk $ str
+        return $ EString s
     <|>
     do
-        n <- number
-        return "bar"
+        v <- tk $ var
+        return $ EVar v
     <|>
     do
-        -- Expression
-        return "bleh"
+        n <- tk $ number
+        return $ ENum n
+
+expressionList :: Parser [Expression]
+expressionList = 
+    do
+        ls <- tk $ expression `sepBy` (tk $ char ';')
+        return ls
+
+line :: Parser Line
+line = 
+    do
+        n <- tk $ number
+        s <- tk $ statement
+        cr
+        return $ NumberedLine n s
+    <|>
+    do
+        s <- statement
+        cr
+        return $ Line s
+
+basicFile :: Parser [Line]
+basicFile = 
+    do
+        ls <- tk $ many line
+        return ls
+
+parseBasic input = parse basicFile "basic" input
+
+getFileLines filePath = 
+    do
+        content <- readFile filePath
+        return $ lines content 
+
+parseBasicFromFilePath fp = 
+    do
+        fileStr <- readFile fp
+        print fileStr
+        return $ parseBasic fileStr
 
 main :: IO ()
 main = do
-    return ()
+    args <- getArgs
+    if (length args) > 0 
+        then do
+            let filePath = head args
+            parseResult <- parseBasicFromFilePath filePath
+            case parseResult of
+                -- Error
+                Left a -> print a
+                -- Everything is good.
+                Right a -> print a
+        else do
+            print "The first argument should be the path to a basic file."
