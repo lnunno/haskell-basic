@@ -40,6 +40,7 @@ data Expression =
     EString String                   | 
     EVar Variable                    | 
     ENum Int                         | 
+    Random Int                       |
     ABinary Op Expression Expression 
 
 instance Show Expression where
@@ -47,6 +48,7 @@ instance Show Expression where
     show (EVar var)         = show var 
     show (ENum i)           = show i
     show (ABinary op e1 e2) = (show e1) ++ " " ++ (show op) ++ " " ++ (show e2)
+    show (Random n)         = "RND(" ++ (show n) ++ ")"
 
 data Statement = 
     Print [Expression]                       | 
@@ -175,14 +177,38 @@ ifStatement =
         s <- tk $ statement
         return $ If e1 op e2 s
 
-letStatement :: Parser Statement
-letStatement =
+parens p = 
+    do
+        tk $ char '('
+        res <- p
+        tk $ char ')'
+        return res
+
+random :: Parser Expression
+random = 
+    do
+        string "RND"
+        n <- parens number
+        return $ Random n
+
+arithLet = 
     do
         tk $ string "LET"
         v <- tk $ var 
         tk $ char '='
         e <- tk $ arithExpression
         return $ Let v e 
+
+rndLet =
+    do
+        tk $ string "LET"
+        v <- tk $ var 
+        tk $ char '='
+        e <- tk $ random
+        return $ Let v e         
+
+letStatement :: Parser Statement
+letStatement = try rndLet <|> arithLet
 
 goto :: Parser Statement
 goto =
