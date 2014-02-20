@@ -7,9 +7,13 @@ module Main where
 
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (Line)
+import Text.ParserCombinators.Parsec.Expr
 import Data.List
 
-data Variable = Variable String deriving (Show,Eq)
+data Variable = Variable String deriving (Eq)
+
+instance Show Variable where
+    show (Variable s) = s
 
 data Op = Plus | Minus | Times | Div deriving (Eq)
 
@@ -19,7 +23,11 @@ instance Show Op where
     show Times  = "*"
     show Div    = "/"
 
-data Line = NumberedLine Int Statement | Line Statement deriving (Show)
+data Line = NumberedLine Int Statement | Line Statement
+
+instance Show Line where
+    show (NumberedLine n stmt) = (show n) ++ " " ++ (show stmt)
+    show (Line stmt)           = show stmt 
 
 data Relop = Lt | Gt | Equal deriving (Eq)
 
@@ -29,12 +37,16 @@ instance Show Relop where
     show Equal = "=" 
 
 data Expression = 
-    EString String      | 
-    EVar Variable       | 
-    ENum Int            | 
-    EOp  Op             |
-    Ne 
-    deriving (Show)
+    EString String                   | 
+    EVar Variable                    | 
+    ENum Int                         | 
+    ABinary Op Expression Expression 
+
+instance Show Expression where
+    show (EString s)        = show s
+    show (EVar var)         = show var 
+    show (ENum i)           = show i
+    show (ABinary op e1 e2) = (show e1) ++ " " ++ (show op) ++ " " ++ (show e2)
 
 data Statement = 
     Print [Expression]                       | 
@@ -54,6 +66,9 @@ showVarList vars = intercalate ", " (map show vars)
 
 showExprList :: [Expression] -> String
 showExprList exprs = intercalate "; " (map show exprs)
+
+showLineList :: [Line] -> String
+showLineList lineLs = intercalate "\n" (map show lineLs)
 
 instance Show Statement where
     show (Print exprs)      = "PRINT " ++ (showExprList exprs)
@@ -75,7 +90,7 @@ tk :: Parser a -> Parser a
 tk parser = 
     do 
         a <- parser
-        spaces
+        many (char ' ')
         return a
 
 -- var ::= A | B | C .... | Y | Z
@@ -91,8 +106,8 @@ varList =
         vars <- sepBy var (char ',') 
         return vars
 
-cr :: Parser Char    
-cr = char '\n'
+cr :: Parser String    
+cr = (string "\n") <|> (string "\r\n")
 
 str :: Parser String
 str = 
@@ -145,30 +160,36 @@ easyParse p input = parse p "basic" input
 printStatement :: Parser Statement
 printStatement = 
     do
-        string "PRINT"
-        return $ Print [Ne]
+        tk $ string "PRINT"
+        exprs <- expressionList
+        return $ Print exprs
 
 ifStatement :: Parser Statement
 ifStatement =
     do
         tk $ string "IF"
+        e1 <- tk $ expression
         op <- relop
+        e2 <- tk $ expression
         tk $ string "THEN"
-        return $ If Ne op Ne End
+        s <- tk $ statement
+        return $ If e1 op e2 s
 
 letStatement :: Parser Statement
 letStatement =
     do
         tk $ string "LET"
-        v <- var 
+        v <- tk $ var 
         tk $ char '='
-        return $ Let v Ne 
+        e <- tk $ arithExpression
+        return $ Let v e 
 
 goto :: Parser Statement
 goto =
     do
         tk $ string "GOTO"
-        return $ Goto Ne
+        e <- tk $ expression
+        return $ Goto e
 
 input :: Parser Statement
 input = 
@@ -181,7 +202,7 @@ input =
 {-
 Statement parsers.
 -}
-gosub = do {tk $ string "GOSUB";   return $ Gosub Ne}
+gosub = do {tk $ string "GOSUB";  e <- expression; return $ Gosub e}
 ret   = do {tk $ string "RETURN";  return Return}
 clear = do {tk $ string "CLEAR";   return Clear}
 list  = do {tk $ string "LIST";    return List}
@@ -250,8 +271,17 @@ getFileLines filePath =
 parseBasicFromFilePath fp = 
     do
         fileStr <- readFile fp
-        print fileStr
         return $ parseBasic fileStr
+
+arithOperators = [ 
+                [Infix  (tk $ char '*'   >> return (ABinary Times)) AssocLeft],
+                [Infix  (tk $ char '/'   >> return (ABinary Div))   AssocLeft],
+                [Infix  (tk $ char '+'   >> return (ABinary Plus))  AssocLeft],
+                [Infix  (tk $ char '-'   >> return (ABinary Minus)) AssocLeft]
+               ]
+
+arithExpression :: Parser Expression
+arithExpression = buildExpressionParser arithOperators expression
 
 main :: IO ()
 main = do
@@ -264,6 +294,6 @@ main = do
                 -- Error
                 Left a -> print a
                 -- Everything is good.
-                Right a -> print a
+                Right a -> putStrLn (showLineList a)
         else do
             print "The first argument should be the path to a basic file."
