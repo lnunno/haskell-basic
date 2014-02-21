@@ -3,9 +3,8 @@ CS 591: Advanced Declarative Programming
 Basic Parser using Parsec
 By: Lucas Nunno
 -}
-module Main where
+module BasicParser where
 
-import System.Environment
 import Text.ParserCombinators.Parsec hiding (Line)
 import Text.ParserCombinators.Parsec.Expr
 import Data.List
@@ -365,18 +364,3 @@ arithOperators = [
 
 arithExpression :: Parser Expression
 arithExpression = buildExpressionParser arithOperators expression
-
-main :: IO ()
-main = do
-    args <- getArgs
-    if (length args) > 0 
-        then do
-            let filePath = head args
-            parseResult <- parseBasicFromFilePath filePath
-            case parseResult of
-                -- Error
-                Left a -> print a
-                -- Everything is good.
-                Right a -> putStrLn (showLineList a)
-        else do
-            print "The first argument should be the path to a basic file."
