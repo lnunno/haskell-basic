@@ -9,7 +9,7 @@ import Text.ParserCombinators.Parsec hiding (Line)
 import Text.ParserCombinators.Parsec.Expr
 import Data.List
 
-data Variable = Variable String deriving (Eq)
+data Variable = Variable String deriving (Eq,Ord)
 
 instance Show Variable where
     show (Variable s) = s
