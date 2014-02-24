@@ -28,6 +28,21 @@ instance Show Line where
     show (NumberedLine n stmt) = (show n) ++ " " ++ (show stmt)
     show (Line stmt)           = show stmt 
 
+instance Eq Line where
+    (NumberedLine x _) == (NumberedLine y _) = x == y
+    (NumberedLine _ _) == (Line _) = False
+    (Line _) == (Line _) = False 
+
+instance Ord Line where
+    compare (NumberedLine x _) (NumberedLine y _) = 
+        if x > y 
+            then GT 
+            else 
+                if x == y 
+                    then EQ
+                    else LT
+    compare (NumberedLine _ _) (Line _) = LT
+
 data Relop = Lt | Gt | Equal deriving (Eq)
 
 instance Show Relop where

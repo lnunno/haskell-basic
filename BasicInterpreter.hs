@@ -66,3 +66,7 @@ evalInput (Input exprs) = do
 
 evalRand :: Expression -> IO Int
 evalRand (Random i) = randomRIO (0,i)
+
+--interpretBasic :: [Line] -> IO ()
+--interpretBasic lns = do
+    
