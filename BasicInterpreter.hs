@@ -2,6 +2,7 @@ module BasicInterpreter where
 
 import BasicParser
 import Control.Monad.State
+import System.Random
 import qualified Data.Sequence as Seq
 import qualified Data.Map as Map
 
@@ -39,6 +40,12 @@ eval (Let var (ENum i)) = do
     BasicContext vMap ip ls <- get
     put $ BasicContext (Map.insert var i vMap) ip ls
 
+eval (Let var (Random i)) = do
+    BasicContext vMap ip ls <- get 
+    rVal <- liftIO $ randomRIO (0,i)
+    put $ BasicContext (Map.insert var rVal vMap) ip ls
+
+
 eval' :: [Statement] -> Basic
 eval' stmts = do
     sequence_ (map eval stmts)
@@ -57,12 +64,23 @@ vp1 = [
         EVar (Variable "Y")
         ]
     ]
+vp2 = [
+    Let (Variable "X") (Random 10),
+    Let (Variable "Y") (Random 10),
+    Print [
+        EString "X =", 
+        EVar (Variable "X"),
+        EString "Y =",
+        EVar (Variable "Y")
+        ]
+    ]
 
 tr a = runStateT a initialContext
 
 testPrint = do
     tr $ eval' p1
     tr $ eval' vp1
+    tr $ eval' vp2
 
 main = do
     testPrint
