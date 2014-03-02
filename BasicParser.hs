@@ -41,7 +41,8 @@ instance Ord Line where
                 if x == y 
                     then EQ
                     else LT
-    compare (NumberedLine _ _) (Line _) = LT
+    compare (NumberedLine _ _) (Line _) = GT
+    compare (Line _) (NumberedLine _ _) = LT
 
 data Relop = Lt | Gt | Equal deriving (Eq)
 
