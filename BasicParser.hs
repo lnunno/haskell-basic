@@ -22,27 +22,22 @@ instance Show Op where
     show Times  = "*"
     show Div    = "/"
 
-data Line = NumberedLine Int Statement | Line Statement
+data Line = Line {lineNumber :: Int, lineStatement :: Statement}
 
 instance Show Line where
-    show (NumberedLine n stmt) = (show n) ++ " " ++ (show stmt)
-    show (Line stmt)           = show stmt 
+    show (Line n stmt) = (show n) ++ " " ++ (show stmt)
 
 instance Eq Line where
-    (NumberedLine x _) == (NumberedLine y _) = x == y
-    (NumberedLine _ _) == (Line _) = False
-    (Line _) == (Line _) = False 
+    (Line x _) == (Line y _) = x == y
 
 instance Ord Line where
-    compare (NumberedLine x _) (NumberedLine y _) = 
+    compare (Line x _) (Line y _) = 
         if x > y 
             then GT 
             else 
                 if x == y 
                     then EQ
                     else LT
-    compare (NumberedLine _ _) (Line _) = GT
-    compare (Line _) (NumberedLine _ _) = LT
 
 data Relop = Lt | Gt | Equal deriving (Eq)
 
@@ -346,12 +341,7 @@ line =
         n <- tk $ number
         s <- tk $ statement
         cr
-        return $ NumberedLine n s
-    <|>
-    do
-        s <- statement
-        cr
-        return $ Line s
+        return $ Line n s
 
 basicFile :: Parser [Line]
 basicFile = 
