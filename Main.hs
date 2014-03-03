@@ -3,7 +3,7 @@ module Main where
 
 import System.Environment
 import BasicParser
-import BasicInterpreter
+import BasicInterpreter hiding (main)
 
 main :: IO ()
 main = do
@@ -16,6 +16,11 @@ main = do
                 -- Error
                 Left a -> print a
                 -- Everything is good.
-                Right a -> putStrLn (showLineList a)
+                Right a -> do
+                    putStrLn "Successfully parsed. Parse output:"
+                    putStrLn (showLineList a)
+                    putStrLn "----------------"
+                    interpretBasic a
+
         else do
             print "The first argument should be the path to a basic file."

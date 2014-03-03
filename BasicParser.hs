@@ -346,7 +346,7 @@ line =
 basicFile :: Parser [Line]
 basicFile = 
     do
-        ls <- tk $ many line
+        ls <- tk $ many1 line
         return ls
 
 parseBasic input = parse basicFile "basic" input

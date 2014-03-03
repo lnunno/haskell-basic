@@ -30,13 +30,13 @@ data BasicContext = BasicContext {
     stmts :: StatementMap
 }
 
-lineToMaps :: [Line] -> (BasicLineMap,StatementMap)
-lineToMaps lns = (blMap,statementMap)
+linesToMaps :: [Line] -> (BasicLineMap,StatementMap)
+linesToMaps lns = (blMap,statementMap)
     where
         rns         = [1 .. length lns]
         nums        = map lineNumber lns
         stmts       = map lineStatement lns
-        blMap       = Map.fromList (zip rns nums)
+        blMap       = Map.fromList (zip nums rns)
         statementMap= Map.fromList (zip rns stmts)
 
 push :: Eq a => a -> [a] -> [a]
@@ -47,15 +47,18 @@ pop (x:xs) = (x,xs)
 
 addBinding :: Binding -> Basic
 addBinding (v,i) = do
-    BasicContext vMap ip lStack lm stmts <- get
-    put $ BasicContext (Map.insert v i vMap) ip lStack lm stmts
+    BasicContext vMap ip lStack lineMap stmts <- get
+    put $ BasicContext (Map.insert v i vMap) ip lStack lineMap stmts
 
 nextStatement :: Basic
 nextStatement = do
-    BasicContext vMap ip lStack lm stmts <- get
-    put $ BasicContext vMap (ip + 1) lStack lm stmts
+    BasicContext vMap ip lStack lineMap stmts <- get
+    put $ BasicContext vMap (ip + 1) lStack lineMap stmts
 
-initialContext = BasicContext Map.empty 0 [] Map.empty Map.empty
+emptyContext = BasicContext Map.empty 0 [] Map.empty Map.empty
+
+initialContext :: BasicLineMap -> StatementMap -> BasicContext
+initialContext lineMap stmtMap = BasicContext Map.empty 0 [] lineMap stmtMap
 
 type Basic = StateT BasicContext IO ()
 
@@ -65,7 +68,7 @@ readInt = readLn
 -- Print statement
 eval :: Statement -> Basic
 eval (Print exprs) = do
-    BasicContext vMap _ _ _ _ <- get
+    BasicContext vMap ip _ _ _ <- get
     let ps = [case e of
                     (EString s) -> do
                         liftIO $ putStr s 
@@ -78,13 +81,13 @@ eval (Print exprs) = do
 
 -- Let statement
 eval (Let var (ENum i)) = do
-    BasicContext vMap ip lStack lm stmts <- get
-    put $ BasicContext (Map.insert var i vMap) (ip + 1) lStack lm stmts
+    BasicContext vMap ip lStack lineMap stmts <- get
+    put $ BasicContext (Map.insert var i vMap) (ip + 1) lStack lineMap stmts
 
 eval (Let var (Random i)) = do
-    BasicContext vMap ip lStack lm stmts <- get 
+    BasicContext vMap ip lStack lineMap stmts <- get 
     rVal <- liftIO $ randomRIO (0,i)
-    put $ BasicContext (Map.insert var rVal vMap) (ip + 1) lStack lm stmts
+    put $ BasicContext (Map.insert var rVal vMap) (ip + 1) lStack lineMap stmts
 
 eval input@(Input exprs) = do
     bindings <- liftIO $ getInputBindings input
@@ -93,21 +96,25 @@ eval input@(Input exprs) = do
 
 eval (ForLoop (EVar v) (ENum begin) (ENum end)) = do
     addBinding (v,begin)
-    BasicContext vMap ip lStack lm stmts <- get 
+    BasicContext vMap ip lStack lineMap stmts <- get 
     let newLStack = push (LoopBounds (ip+1) end) lStack
-    put $ BasicContext vMap (ip + 1) newLStack lm stmts
+    put $ BasicContext vMap (ip + 1) newLStack lineMap stmts
 
 eval (NextIter (EVar v)) = do
-    BasicContext vMap ip lStack lm stmts <- get
+    BasicContext vMap ip lStack lineMap stmts <- get
     let oldVal = vMap Map.! v 
     let newVal = oldVal + 1
     let newVMap = Map.insert v newVal vMap
     let (LoopBounds loopBeginLine end,xs) = pop lStack
     if newVal > end 
         then do
-            put $ BasicContext newVMap (ip + 1) xs lm stmts
+            put $ BasicContext newVMap (ip + 1) xs lineMap stmts
         else do
-            put $ BasicContext newVMap loopBeginLine lStack lm stmts
+            put $ BasicContext newVMap loopBeginLine lStack lineMap stmts
+
+eval (Goto (ENum i)) = do
+    BasicContext vMap ip lStack lineMap stmts <- get
+    put $ BasicContext vMap (lineMap Map.! i) lStack lineMap stmts
 
 getInputBindings :: Statement -> IO [Binding]
 getInputBindings (Input exprs) = do
@@ -125,6 +132,25 @@ getInputBindings (Input exprs) = do
 eval' :: [Statement] -> Basic
 eval' stmts = do
     sequence_ (map eval stmts)
+
+interpretBasic :: [Line] -> IO ()
+interpretBasic lns = do
+    let (lineMap,stmts) = linesToMaps lns
+    let ctx = initialContext lineMap stmts
+    runStateT (evalInstructions 1 stmts) emptyContext
+    return ()
+
+evalInstructions :: Int -> StatementMap -> Basic
+evalInstructions n stmts = do
+    if not (Map.member n stmts)
+        then
+            return ()
+        else do
+            let x = stmts Map.! n
+            eval x
+            -- Get the next instruction.
+            BasicContext _ ip _ _ _ <- get
+            evalInstructions ip stmts
 
 {-
 Tests 
@@ -166,7 +192,7 @@ in1 = [
         ]
     ]
 
-tr a = runStateT a initialContext
+tr a = runStateT a emptyContext
 
 testPrint = do
     tr $ eval' p1
