@@ -1,3 +1,8 @@
+{-
+CS 591: Advanced Declarative Programming
+Basic Interpreter
+By: Lucas Nunno
+-}
 module BasicInterpreter where
 
 import BasicParser
@@ -45,6 +50,11 @@ addBinding (v,i) = do
     BasicContext vMap ip lStack lm stmts <- get
     put $ BasicContext (Map.insert v i vMap) ip lStack lm stmts
 
+nextStatement :: Basic
+nextStatement = do
+    BasicContext vMap ip lStack lm stmts <- get
+    put $ BasicContext vMap (ip + 1) lStack lm stmts
+
 initialContext = BasicContext Map.empty 0 [] Map.empty Map.empty
 
 type Basic = StateT BasicContext IO ()
@@ -64,6 +74,7 @@ eval (Print exprs) = do
                         | e <- exprs] 
     let nl = [(liftIO $ putStrLn "")] :: [Basic]
     sequence_ (ps ++ nl)
+    nextStatement
 
 -- Let statement
 eval (Let var (ENum i)) = do
@@ -78,6 +89,7 @@ eval (Let var (Random i)) = do
 eval input@(Input exprs) = do
     bindings <- liftIO $ getInputBindings input
     sequence_ [addBinding b | b <- bindings]
+    nextStatement
 
 eval (ForLoop (EVar v) (ENum begin) (ENum end)) = do
     addBinding (v,begin)
