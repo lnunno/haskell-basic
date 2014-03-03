@@ -16,11 +16,19 @@ data BasicContext = BasicContext {
     loopStack :: [LineNumber]
 }
 
+addBinding :: Binding -> Basic
+addBinding (v,i) = do
+    BasicContext vMap ip ls <- get
+    put $ BasicContext (Map.insert v i vMap) ip ls
+
 initialContext = BasicContext Map.empty 0 []
 
 type Basic = StateT BasicContext IO ()
 
 putStrSp a = putStr (a ++ " ") 
+
+readInt :: IO Int
+readInt = readLn
 
 -- Print statement
 eval :: Statement -> Basic
@@ -45,6 +53,22 @@ eval (Let var (Random i)) = do
     rVal <- liftIO $ randomRIO (0,i)
     put $ BasicContext (Map.insert var rVal vMap) ip ls
 
+eval input@(Input exprs) = do
+    bindings <- liftIO $ getInputBindings input
+    sequence_ [addBinding b | b <- bindings]
+
+getInputBindings :: Statement -> IO [Binding]
+getInputBindings (Input exprs) = do
+    let strInt = 99999 :: Int
+    inLs <- sequence [case e of 
+                    (EString s) -> do
+                        putStr (s ++ " ")
+                        return (Variable "fake", strInt)
+                    (EVar v)    -> do
+                        i <- readInt
+                        return (v,i)
+                         | e <- exprs]
+    return $ filter (\(_,x) -> x /= strInt) inLs
 
 eval' :: [Statement] -> Basic
 eval' stmts = do
@@ -75,12 +99,30 @@ vp2 = [
         ]
     ]
 
+in1 = [
+    Input [
+        EString "What is X?",
+        EVar $ Variable "X",
+        EString "What is Y?",
+        EVar $ Variable "Y"
+        ],
+    Print [
+        EString "You said X is", 
+        EVar (Variable "X"),
+        EString "You said Y is",
+        EVar (Variable "Y")
+        ]
+    ]
+
 tr a = runStateT a initialContext
 
 testPrint = do
     tr $ eval' p1
     tr $ eval' vp1
     tr $ eval' vp2
+
+testInput = do
+    tr $ eval' in1
 
 main = do
     testPrint
